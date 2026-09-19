@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Дневник домашних заданий</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+
+    --paper: #eef0e4;
+    --paper-card: #f8f8f1;
+    --paper-card-raised: #ffffff;
+    --ink: #1e2b26;
+    --ink-soft: #56635b;
+    --ink-faint: #8b968e;
+    --line: #d9dccb;
+    --accent: #2f6f62;
+    --accent-ink: #ffffff;
+    --accent-soft: #dfe9e2;
+    --warn: #a8472b;
+    --warn-soft: #f3e0d8;
+    --gold: #c98a2c;
+    --shadow: 0 1px 2px rgba(30, 43, 38, 0.06), 0 8px 20px -12px rgba(30, 43, 38, 0.18);
+    --radius: 14px;
+    --font-display: 'Fraunces', Georgia, 'Iowan Old Style', serif;
+    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #141d19;
+      --paper-card: #1b2622;
+      --paper-card-raised: #212e29;
+      --ink: #eae7dc;
+      --ink-soft: #a9b3ac;
+      --ink-faint: #6d7871;
+      --line: #2b3833;
+      --accent: #6fb39f;
+      --accent-ink: #10231d;
+      --accent-soft: #223530;
+      --warn: #d98363;
+      --warn-soft: #3a2620;
+      --gold: #e0ab55;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -14px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #141d19;
+    --paper-card: #1b2622;
+    --paper-card-raised: #212e29;
+    --ink: #eae7dc;
+    --ink-soft: #a9b3ac;
+    --ink-faint: #6d7871;
+    --line: #2b3833;
+    --accent: #6fb39f;
+    --accent-ink: #10231d;
+    --accent-soft: #223530;
+    --warn: #d98363;
+    --warn-soft: #3a2620;
+    --gold: #e0ab55;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 28px -14px rgba(0, 0, 0, 0.5);
+  }
+
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--paper);
+    background-image:
+      linear-gradient(var(--line) 1px, transparent 1px);
+    background-size: 100% 42px;
+    background-attachment: local;
+    color: var(--ink);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: "";
+  }
+
+  a { color: inherit; }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    background: none;
+    color: inherit;
+  }
+
+  #app {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 28px 20px calc(48px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ---------- HEADER ---------- */
+  .topbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .brand { display: flex; align-items: center; gap: 14px; }
+
+  .brand-mark {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+    border-radius: 11px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-size: 22px;
+    box-shadow: var(--shadow);
+    transform: rotate(-4deg);
+  }
+
+  .brand h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 26px;
+    margin: 0 0 2px;
+    letter-spacing: -0.01em;
+  }
+
+  .brand p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 4px;
+  }
+
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+    background: var(--paper-card);
+    border: 1px solid var(--line);
+    transition: background 0.15s ease, transform 0.15s ease;
+  }
+  .icon-btn:hover { transform: translateY(-1px); }
+  .icon-btn:active { transform: translateY(0); }
+
+  .ghost-link-btn {
+    font-size: 13.5px;
+    color: var(--ink-faint);
+    padding: 8px 4px;
+    border-bottom: 1px solid transparent;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .ghost-link-btn:hover { color: var(--warn); border-color: var(--warn); }
+
+  /* ---------- LAYOUT ---------- */
+  .layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- RAIL / TABS ---------- */
+  .rail {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: sticky;
+    top: 20px;
+  }
+
+  @media (max-width: 760px) {
+    .rail {
+      position: static;
+      flex-direction: row;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      gap: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .rail::-webkit-scrollbar { display: none; }
+  }
+
+  .rail-tab {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 14.5px;
+    text-align: left;
+    white-space: nowrap;
+    color: var(--ink-soft);
+    border: 1px solid transparent;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .rail-tab .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--ink-faint);
+  }
+
+  .rail-tab .count {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    background: var(--paper);
+    border-radius: 20px;
+    padding: 1px 7px;
+  }
+
+  .rail-tab:hover {
+    background: var(--paper-card);
+  }
+
+  .rail-tab.active {
+    background: var(--paper-card-raised);
+    border-color: var(--line);
+    color: var(--ink);
+    font-weight: 600;
+    box-shadow: var(--shadow);
+  }
+
+  .rail-divider {
+    height: 1px;
+    background: var(--line);
+    margin: 8px 4px;
+  }
+  @media (max-width: 760px) { .rail-divider { display: none; } }
+
+  .rail-add-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 12px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+    font-size: 14.5px;
+    white-space: nowrap;
+    box-shadow: var(--shadow);
+    transition: filter 0.15s ease, transform 0.15s ease;
+  }
+  .rail-add-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .rail-add-btn:active { transform: translateY(0); }
+
+  @media (max-width: 760px) {
+    .rail-add-btn { order: -1; }
+  }
+
+  /* ---------- BOARD ---------- */
+  .board { min-height: 340px; }
+
+  .board-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 10px;
+  }
+
+  .board-heading h2 {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .board-heading .hint {
+    font-size: 13px;
+    color: var(--ink-faint);
+  }
+
+  .group-label {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 22px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .group-label:first-child { margin-top: 0; }
+
+  .group-label .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+  }
+
+  .cards { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ---------- TASK CARD ---------- */
+  .task-card {
+    background: var(--paper-card-raised);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 14px 14px 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    box-shadow: var(--shadow);
+    animation: cardIn 0.28s ease both;
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .task-card.leaving {
+    animation: cardOut 0.32s ease forwards;
+  }
+  @keyframes cardOut {
+    to { opacity: 0; transform: translateX(14px) scale(0.98); max-height: 0; margin: 0; padding-top: 0; padding-bottom: 0; }
+  }
+
+  .task-check {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line);
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .task-check:hover { border-color: var(--accent); }
+  .task-check svg { opacity: 0; transition: opacity 0.15s ease; width: 13px; height: 13px; }
+  .task-check:hover svg { opacity: 0.4; }
+
+  .task-body { flex: 1; min-width: 0; }
+
+  .task-subject {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 3px;
+  }
+
+  .task-text {
+    font-size: 15px;
+    line-height: 1.5;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+
+  .task-meta {
+    margin-top: 7px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    font-size: 12px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    background: var(--paper);
+    color: var(--ink-faint);
+  }
+  .badge.today { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+  .badge.soon { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .badge.overdue { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+
+  /* ---------- EMPTY STATE ---------- */
+  .empty-state {
+    border: 1px dashed var(--line);
+    border-radius: var(--radius);
+    padding: 44px 24px;
+    text-align: center;
+    color: var(--ink-soft);
+  }
+  .empty-state .glyph {
+    font-family: var(--font-display);
+    font-size: 34px;
+    margin-bottom: 10px;
+    opacity: 0.7;
+  }
+  .empty-state h3 {
+    font-family: var(--font-display);
+    font-size: 18px;
+    margin: 0 0 6px;
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .empty-state p { margin: 0 0 18px; font-size: 14px; }
+
+  .primary-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+    font-size: 14.5px;
+    padding: 11px 20px;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    transition: filter 0.15s ease, transform 0.15s ease;
+  }
+  .primary-btn:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .primary-btn:active { transform: translateY(0); }
+
+  /* ---------- STEPPER (add flow) ---------- */
+  .stepper {
+    background: var(--paper-card-raised);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 26px 26px 22px;
+    box-shadow: var(--shadow);
+    max-width: 520px;
+    animation: cardIn 0.25s ease both;
+  }
+
+  .step-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+  .step-progress .seg {
+    height: 3px;
+    flex: 1;
+    border-radius: 2px;
+    background: var(--line);
+    transition: background 0.2s ease;
+  }
+  .step-progress .seg.done { background: var(--accent); }
+
+  .step-eyebrow {
+    font-size: 12.5px;
+    color: var(--ink-faint);
+    margin-bottom: 6px;
+  }
+
+  .stepper h3 {
+    font-family: var(--font-display);
+    font-size: 21px;
+    font-weight: 600;
+    margin: 0 0 4px;
+  }
+
+  .stepper .sub {
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    margin: 0 0 18px;
+  }
+
+  .field-input {
+    width: 100%;
+    border: 1.5px solid var(--line);
+    background: var(--paper);
+    color: var(--ink);
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 15px;
+    font-family: inherit;
+    transition: border-color 0.15s ease;
+  }
+  .field-input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  textarea.field-input {
+    resize: vertical;
+    min-height: 96px;
+    line-height: 1.5;
+  }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 11px;
+  }
+  .chip {
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .chip:hover { border-color: var(--accent); color: var(--ink); }
+
+  .step-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 22px;
+    gap: 10px;
+  }
+
+  .btn {
+    padding: 11px 18px;
+    border-radius: 10px;
+    font-size: 14.5px;
+    font-weight: 600;
+    transition: filter 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); box-shadow: var(--shadow); }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+  .btn-text { color: var(--ink-faint); font-weight: 500; }
+  .btn-text:hover { color: var(--ink); }
+
+  .review-card {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    background: var(--paper);
+    margin-bottom: 6px;
+  }
+  .review-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .review-row:last-child { border-bottom: none; }
+  .review-row .label { font-size: 12.5px; color: var(--ink-faint); min-width: 78px; padding-top: 2px; }
+  .review-row .value { font-size: 14.5px; text-align: right; flex: 1; word-break: break-word; white-space: pre-wrap; }
+  .review-row button {
+    font-size: 12.5px;
+    color: var(--accent);
+    white-space: nowrap;
+    border-bottom: 1px solid transparent;
+  }
+  .review-row button:hover { border-color: var(--accent); }
+
+  /* ---------- CONFIRM DIALOG ---------- */
+  .overlay-bg {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 27, 24, 0.42);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 50;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s ease;
+  }
+  .overlay-bg.show { opacity: 1; pointer-events: auto; }
+
+  .confirm-box {
+    background: var(--paper-card-raised);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 340px;
+    width: 100%;
+    box-shadow: var(--shadow);
+    transform: translateY(6px) scale(0.98);
+    transition: transform 0.18s ease;
+  }
+  .overlay-bg.show .confirm-box { transform: translateY(0) scale(1); }
+
+  .confirm-box h4 {
+    font-family: var(--font-display);
+    font-size: 18px;
+    margin: 0 0 8px;
+  }
+  .confirm-box p { font-size: 14px; color: var(--ink-soft); margin: 0 0 18px; line-height: 1.5; }
+  .confirm-box .row { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ---------- TOAST ---------- */
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%) translateY(10px);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 11px 18px;
+    border-radius: 10px;
+    font-size: 13.5px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    z-index: 60;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">✎</div>
+      <div>
+        <h1>Дневник домашних заданий</h1>
+        <p id="todayDate"></p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="ghost-link-btn" id="clearAllBtn">Очистить архив</button>
+      <button class="icon-btn" id="themeToggle" aria-label="Переключить тему" title="Тема">🌙</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <nav class="rail" id="rail"></nav>
+    <main class="board" id="board"></main>
+  </div>
+
+</div>
+
+<div class="overlay-bg" id="overlay">
+  <div class="confirm-box" id="confirmBox"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------------------------------------------------------
+  // STORAGE  (личный бланк — данные хранятся только в этом браузере)
+  // ---------------------------------------------------------
+  const STORAGE_KEY = "hw-diary-v1";
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+    return { tasks: [] };
+  }
+
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    catch (e) { /* storage unavailable — app still works this session */ }
+  }
+
+  let state = loadState();
+
+  // ---------------------------------------------------------
+  // VIEW STATE
+  // ---------------------------------------------------------
+  let view = {
+    mode: "list",          // 'list' | 'add'
+    activeSubject: "all",  // 'all' | subjectKey
+    step: "subject",       // 'subject' | 'task' | 'deadline' | 'review'
+    draft: { subject: "", task: "", deadline: "" },
+  };
+
+  const PALETTE = ["#b4552f", "#2f6f62", "#7d63a6", "#c98a2c", "#3f6fa6", "#6e7f4c"];
+
+  function norm(text) {
+    return text.toLowerCase().replace(/ё/g, "е").trim().replace(/\s+/g, " ");
+  }
+
+  function subjectColor(key) {
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+    return PALETTE[hash % PALETTE.length];
+  }
+
+  function uid() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  // ---------------------------------------------------------
+  // DERIVED DATA
+  // ---------------------------------------------------------
+  function getSubjects() {
+    const map = new Map();
+    state.tasks.forEach(t => {
+      if (!map.has(t.subjectKey)) map.set(t.subjectKey, { key: t.subjectKey, name: t.subject, count: 0 });
+      map.get(t.subjectKey).count++;
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "ru"));
+  }
+
+  function tasksFor(subjectKey) {
+    return state.tasks
+      .filter(t => subjectKey === "all" || t.subjectKey === subjectKey)
+      .sort((a, b) => {
+        const da = a.deadline || "9999-99-99";
+        const db = b.deadline || "9999-99-99";
+        return da.localeCompare(db) || a.createdAt - b.createdAt;
+      });
+  }
+
+  // ---------------------------------------------------------
+  // DEADLINE FORMATTING
+  // ---------------------------------------------------------
+  function deadlineInfo(dateStr) {
+    if (!dateStr) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const d = new Date(dateStr + "T00:00:00");
+    const diff = Math.round((d - today) / 86400000);
+    const fmt = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+
+    if (diff < 0) return { text: `Просрочено · ${fmt}`, cls: "overdue" };
+    if (diff === 0) return { text: "Сегодня", cls: "today" };
+    if (diff === 1) return { text: "Завтра", cls: "soon" };
+    if (diff <= 6) return { text: `Через ${diff} дн. · ${fmt}`, cls: "soon" };
+    return { text: fmt, cls: "" };
+  }
+
+  // ---------------------------------------------------------
+  // RENDER: RAIL
+  // ---------------------------------------------------------
+  function renderRail() {
+    const rail = document.getElementById("rail");
+    const subjects = getSubjects();
+    const total = state.tasks.length;
+
+    let html = `
+      <button class="rail-add-btn" id="railAddBtn">
+        <span>＋</span><span>Записать ДЗ</span>
+      </button>
+      <div class="rail-divider"></div>
+      <button class="rail-tab ${view.activeSubject === "all" ? "active" : ""}" data-subject="all">
+        <span class="dot" style="background: var(--ink-faint)"></span>
+        <span>Все задания</span>
+        <span class="count">${total}</span>
+      </button>
+    `;
+
+    subjects.forEach(s => {
+      const active = view.activeSubject === s.key;
+      html += `
+        <button class="rail-tab ${active ? "active" : ""}" data-subject="${s.key}">
+          <span class="dot" style="background:${subjectColor(s.key)}"></span>
+          <span>${escapeHtml(s.name)}</span>
+          <span class="count">${s.count}</span>
+        </button>
+      `;
+    });
+
+    rail.innerHTML = html;
+
+    rail.querySelectorAll("[data-subject]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        view.activeSubject = btn.dataset.subject;
+        view.mode = "list";
+        render();
+      });
+    });
+    document.getElementById("railAddBtn").addEventListener("click", startAddFlow);
+  }
+
+  // ---------------------------------------------------------
+  // RENDER: BOARD (list mode)
+  // ---------------------------------------------------------
+  function renderBoardList() {
+    const board = document.getElementById("board");
+    const subjects = getSubjects();
+
+    if (subjects.length === 0) {
+      board.innerHTML = `
+        <div class="empty-state">
+          <div class="glyph">📭</div>
+          <h3>Домашнего задания нет</h3>
+          <p>Добавь первую запись — займёт меньше минуты.</p>
+          <button class="primary-btn" id="emptyAddBtn">＋ Записать ДЗ</button>
+        </div>
+      `;
+      document.getElementById("emptyAddBtn").addEventListener("click", startAddFlow);
+      return;
+    }
+
+    if (view.activeSubject === "all") {
+      let html = `
+        <div class="board-heading">
+          <h2>Все домашние задания</h2>
+          <span class="hint">${state.tasks.length} шт.</span>
+        </div>
+      `;
+      subjects.forEach(s => {
+        html += `<div class="group-label"><span class="dot" style="background:${subjectColor(s.key)}"></span>${escapeHtml(s.name)}</div>`;
+        html += `<div class="cards">` + tasksFor(s.key).map(taskCardHtml).join("") + `</div>`;
+      });
+      board.innerHTML = html;
+    } else {
+      const items = tasksFor(view.activeSubject);
+      if (items.length === 0) { view.activeSubject = "all"; return renderBoardList(); }
+      const name = items[0].subject;
+      board.innerHTML = `
+        <div class="board-heading">
+          <h2>${escapeHtml(name)}</h2>
+          <span class="hint">${items.length} шт.</span>
+        </div>
+        <div class="cards">${items.map(taskCardHtml).join("")}</div>
+      `;
+    }
+
+    board.querySelectorAll("[data-done]").forEach(btn => {
+      btn.addEventListener("click", () => completeTask(btn.dataset.done));
+    });
+  }
+
+  function taskCardHtml(t) {
+    const dl = deadlineInfo(t.deadline);
+    return `
+      <div class="task-card" data-id="${t.id}" style="border-left-color:${subjectColor(t.subjectKey)}">
+        <button class="task-check" data-done="${t.id}" aria-label="Отметить выполненным">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+            <path d="M4 12l6 6L20 6"/>
+          </svg>
+        </button>
+        <div class="task-body">
+          ${view.activeSubject === "all" ? `<div class="task-subject">${escapeHtml(t.subject)}</div>` : ""}
+          <div class="task-text">${escapeHtml(t.task)}</div>
+          ${dl ? `<div class="task-meta"><span class="badge ${dl.cls}">${dl.text}</span></div>` : ""}
+        </div>
+      </div>
+    `;
+  }
+
+  function completeTask(id) {
+    const el = document.querySelector(`.task-card[data-id="${id}"]`);
+    if (el) {
+      el.classList.add("leaving");
+      setTimeout(() => {
+        state.tasks = state.tasks.filter(t => t.id !== id);
+        saveState();
+        render();
+        showToast("Готово — задание отмечено выполненным 🎉");
+      }, 260);
+    } else {
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      saveState();
+      render();
+    }
+  }
+
+  // ---------------------------------------------------------
+  // RENDER: BOARD (add-flow / stepper mode)
+  // ---------------------------------------------------------
+  const STEP_ORDER = ["subject", "task", "deadline", "review"];
+
+  function startAddFlow() {
+    view.mode = "add";
+    view.step = "subject";
+    view.draft = { subject: "", task: "", deadline: "", editing: null };
+    render();
+  }
+
+  function cancelAddFlow() {
+    view.mode = "list";
+    render();
+  }
+
+  function progressHtml() {
+    const idx = STEP_ORDER.indexOf(view.step);
+    return `<div class="step-progress">` +
+      STEP_ORDER.map((s, i) => `<div class="seg ${i <= idx ? "done" : ""}"></div>`).join("") +
+      `</div>`;
+  }
+
+  function renderBoardAdd() {
+    const board = document.getElementById("board");
+    const subjects = getSubjects();
+
+    if (view.step === "subject") {
+      board.innerHTML = `
+        <div class="stepper">
+          ${progressHtml()}
+          <div class="step-eyebrow">Шаг 1 из 3</div>
+          <h3>Какой предмет?</h3>
+          <p class="sub">Например: Математика, Английский язык</p>
+          <input class="field-input" id="subjectInput" placeholder="Название предмета" maxlength="60" value="${escapeAttr(view.draft.subject)}" autofocus>
+          ${subjects.length ? `<div class="chip-row">${subjects.map(s => `<button class="chip" data-pick="${escapeAttr(s.name)}">${escapeHtml(s.name)}</button>`).join("")}</div>` : ""}
+          <div class="step-actions">
+            <button class="btn btn-text" id="cancelBtn">Отмена</button>
+            <button class="btn btn-primary" id="nextBtn">Далее</button>
+          </div>
+        </div>
+      `;
+      const input = document.getElementById("subjectInput");
+      const nextBtn = document.getElementById("nextBtn");
+      const sync = () => { nextBtn.disabled = input.value.trim().length === 0; };
+      input.addEventListener("input", sync);
+      sync();
+      input.focus();
+      input.addEventListener("keydown", e => { if (e.key === "Enter" && !nextBtn.disabled) goNext(); });
+      board.querySelectorAll("[data-pick]").forEach(chip => {
+        chip.addEventListener("click", () => { input.value = chip.dataset.pick; sync(); input.focus(); });
+      });
+      nextBtn.addEventListener("click", () => {
+        view.draft.subject = input.value.trim();
+        goNext();
+      });
+      document.getElementById("cancelBtn").addEventListener("click", cancelAddFlow);
+    }
+
+    if (view.step === "task") {
+      board.innerHTML = `
+        <div class="stepper">
+          ${progressHtml()}
+          <div class="step-eyebrow">Шаг 2 из 3 · ${escapeHtml(view.draft.subject)}</div>
+          <h3>Что задано?</h3>
+          <p class="sub">Например: стр. 45, № 12–15</p>
+          <textarea class="field-input" id="taskInput" placeholder="Описание задания">${escapeHtml(view.draft.task)}</textarea>
+          <div class="step-actions">
+            <button class="btn btn-text" id="backBtn">Назад</button>
+            <button class="btn btn-primary" id="nextBtn">Далее</button>
+          </div>
+        </div>
+      `;
+      const input = document.getElementById("taskInput");
+      const nextBtn = document.getElementById("nextBtn");
+      const sync = () => { nextBtn.disabled = input.value.trim().length === 0; };
+      input.addEventListener("input", sync);
+      sync();
+      input.focus();
+      nextBtn.addEventListener("click", () => {
+        view.draft.task = input.value.trim();
+        if (view.draft.editing) { view.draft.editing = null; view.step = "review"; }
+        else goNext();
+        render();
+      });
+      document.getElementById("backBtn").addEventListener("click", () => {
+        if (view.draft.editing) { view.draft.editing = null; view.step = "review"; }
+        else goBack();
+        render();
+      });
+    }
+
+    if (view.step === "deadline") {
+      board.innerHTML = `
+        <div class="stepper">
+          ${progressHtml()}
+          <div class="step-eyebrow">Шаг 3 из 3</div>
+          <h3>Когда сдавать?</h3>
+          <p class="sub">Можно пропустить, если срок неизвестен</p>
+          <input class="field-input" type="date" id="deadlineInput" value="${escapeAttr(view.draft.deadline)}">
+          <div class="step-actions">
+            <button class="btn btn-text" id="backBtn">Назад</button>
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-text" id="skipBtn">Без срока</button>
+              <button class="btn btn-primary" id="nextBtn">Далее</button>
+            </div>
+          </div>
+        </div>
+      `;
+      const input = document.getElementById("deadlineInput");
+      document.getElementById("nextBtn").addEventListener("click", () => {
+        view.draft.deadline = input.value || "";
+        view.step = "review";
+        render();
+      });
+      document.getElementById("skipBtn").addEventListener("click", () => {
+        view.draft.deadline = "";
+        view.step = "review";
+        render();
+      });
+      document.getElementById("backBtn").addEventListener("click", () => { view.step = "task"; render(); });
+    }
+
+    if (view.step === "review") {
+      const dl = deadlineInfo(view.draft.deadline);
+      board.innerHTML = `
+        <div class="stepper">
+          ${progressHtml()}
+          <div class="step-eyebrow">Проверка</div>
+          <h3>Всё верно?</h3>
+          <p class="sub">Проверь запись перед сохранением</p>
+          <div class="review-card">
+            <div class="review-row">
+              <div class="label">Предмет</div>
+              <div class="value">${escapeHtml(view.draft.subject)}</div>
+              <button data-edit="subject">Изменить</button>
+            </div>
+            <div class="review-row">
+              <div class="label">Задание</div>
+              <div class="value">${escapeHtml(view.draft.task)}</div>
+              <button data-edit="task">Изменить</button>
+            </div>
+            <div class="review-row">
+              <div class="label">Срок</div>
+              <div class="value">${view.draft.deadline ? escapeHtml(dl.text) : "Не указан"}</div>
+              <button data-edit="deadline">Изменить</button>
+            </div>
+          </div>
+          <div class="step-actions">
+            <button class="btn btn-text" id="cancelBtn">Отмена</button>
+            <button class="btn btn-primary" id="saveBtn">✓ Подтвердить</button>
+          </div>
+        </div>
+      `;
+      board.querySelectorAll("[data-edit]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const field = btn.dataset.edit;
+          view.draft.editing = field;
+          view.step = field;
+          render();
+        });
+      });
+      document.getElementById("saveBtn").addEventListener("click", saveDraft);
+      document.getElementById("cancelBtn").addEventListener("click", cancelAddFlow);
+    }
+  }
+
+  function goNext() {
+    const idx = STEP_ORDER.indexOf(view.step);
+    view.step = STEP_ORDER[idx + 1];
+    render();
+  }
+  function goBack() {
+    const idx = STEP_ORDER.indexOf(view.step);
+    view.step = STEP_ORDER[Math.max(0, idx - 1)];
+  }
+
+  function saveDraft() {
+    const subjectKey = norm(view.draft.subject);
+    state.tasks.push({
+      id: uid(),
+      subject: view.draft.subject,
+      subjectKey,
+      task: view.draft.task,
+      deadline: view.draft.deadline || "",
+      createdAt: Date.now(),
+    });
+    saveState();
+    view.mode = "list";
+    view.activeSubject = subjectKey;
+    render();
+    showToast("Записано в архив ✓");
+  }
+
+  // ---------------------------------------------------------
+  // TOAST
+  // ---------------------------------------------------------
+  let toastTimer = null;
+  function showToast(text) {
+    const t = document.getElementById("toast");
+    t.textContent = text;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2400);
+  }
+
+  // ---------------------------------------------------------
+  // CLEAR ALL (custom confirm dialog)
+  // ---------------------------------------------------------
+  function openConfirm(title, text, confirmLabel, onConfirm) {
+    const overlay = document.getElementById("overlay");
+    const box = document.getElementById("confirmBox");
+    box.innerHTML = `
+      <h4>${title}</h4>
+      <p>${text}</p>
+      <div class="row">
+        <button class="btn btn-text" id="confirmCancel">Отмена</button>
+        <button class="btn btn-primary" id="confirmOk" style="background:var(--warn)">${confirmLabel}</button>
+      </div>
+    `;
+    overlay.classList.add("show");
+    const close = () => overlay.classList.remove("show");
+    document.getElementById("confirmCancel").addEventListener("click", close);
+    document.getElementById("confirmOk").addEventListener("click", () => { close(); onConfirm(); });
+    overlay.onclick = e => { if (e.target === overlay) close(); };
+  }
+
+  document.getElementById("clearAllBtn").addEventListener("click", () => {
+    if (state.tasks.length === 0) { showToast("Архив уже пуст"); return; }
+    openConfirm(
+      "Очистить весь архив?",
+      "Все сохранённые домашние задания будут удалены без возможности восстановления.",
+      "Удалить всё",
+      () => {
+        const count = state.tasks.length;
+        state.tasks = [];
+        saveState();
+        view.activeSubject = "all";
+        view.mode = "list";
+        render();
+        showToast(`Удалено записей: ${count}`);
+      }
+    );
+  });
+
+  // ---------------------------------------------------------
+  // THEME TOGGLE
+  // ---------------------------------------------------------
+  const themeBtn = document.getElementById("themeToggle");
+  function applyTheme(mode) {
+    if (mode === "dark") { document.documentElement.setAttribute("data-theme", "dark"); themeBtn.textContent = "☀️"; }
+    else if (mode === "light") { document.documentElement.setAttribute("data-theme", "light"); themeBtn.textContent = "🌙"; }
+    else { document.documentElement.removeAttribute("data-theme"); themeBtn.textContent = "🌓"; }
+  }
+  let savedTheme = null;
+  try { savedTheme = localStorage.getItem("hw-diary-theme"); } catch (e) {}
+  applyTheme(savedTheme);
+  themeBtn.addEventListener("click", () => {
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const current = document.documentElement.getAttribute("data-theme") || (prefersDark ? "dark" : "light");
+    const next = current === "dark" ? "light" : "dark";
+    applyTheme(next);
+    try { localStorage.setItem("hw-diary-theme", next); } catch (e) {}
+  });
+
+  // ---------------------------------------------------------
+  // UTIL
+  // ---------------------------------------------------------
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  }
+  function escapeAttr(str) { return escapeHtml(str); }
+
+  // ---------------------------------------------------------
+  // DATE HEADER
+  // ---------------------------------------------------------
+  document.getElementById("todayDate").textContent =
+    new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" });
+
+  // ---------------------------------------------------------
+  // MAIN RENDER
+  // ---------------------------------------------------------
+  function render() {
+    renderRail();
+    if (view.mode === "add") renderBoardAdd();
+    else renderBoardList();
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
