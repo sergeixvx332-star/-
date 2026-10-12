@@ -630,6 +630,106 @@
   @media (prefers-reduced-motion: reduce) {
     * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
   }
+
+  /* ---------- UPDATE: sync, stats, archive ---------- */
+  .topbar-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+  .sync-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    background: var(--paper-card);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 6px 12px;
+    white-space: nowrap;
+  }
+  .sync-pill .pulse {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--ink-faint);
+  }
+  .sync-pill.online .pulse { background: var(--accent); animation: pulse 2.4s ease-in-out infinite; }
+  .sync-pill.offline .pulse { background: var(--warn); }
+  .sync-pill.local .pulse { background: var(--gold); }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent); }
+    50% { box-shadow: 0 0 0 5px transparent; }
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  .stat {
+    background: var(--paper-card-raised);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    box-shadow: var(--shadow);
+  }
+  .stat .num {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat.accent .num { color: var(--accent); }
+  .stat .lbl { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+
+  .rail-emoji { width: 8px; display: inline-flex; justify-content: center; font-size: 12px; margin-right: 2px; }
+
+  .badge.done { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  /* анимация выполнения */
+  .task-card.checked .task-check {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    transform: scale(1.08);
+  }
+  .task-card.checked .task-check svg { opacity: 1; }
+  .task-card.checked .task-text { opacity: 0.55; text-decoration: line-through; }
+  .task-check { transition: border-color 0.15s ease, background 0.15s ease, transform 0.2s ease; }
+
+  /* карточки архива */
+  .task-card.archived { box-shadow: none; background: var(--paper-card); }
+  .task-card.archived .task-text {
+    color: var(--ink-soft);
+    text-decoration: line-through;
+    text-decoration-color: var(--ink-faint);
+  }
+  .task-check.filled {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+    cursor: default;
+  }
+  .task-check.filled svg { opacity: 1; }
+
+  .card-actions { display: flex; gap: 2px; flex-shrink: 0; }
+  .mini-btn {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    font-size: 15px;
+    color: var(--ink-faint);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .mini-btn:hover { background: var(--accent-soft); color: var(--accent); }
+  .mini-btn.danger:hover { background: var(--warn-soft); color: var(--warn); }
+
+  .field-input[type="datetime-local"] { min-height: 46px; }
+  :root[data-theme="dark"] .field-input { color-scheme: dark; }
+
+  @media (max-width: 520px) {
+    .stat { padding: 10px 12px; }
+    .stat .num { font-size: 22px; }
+    .brand h1 { font-size: 21px; }
+  }
 </style>
 </head>
 <body>
@@ -644,10 +744,13 @@
       </div>
     </div>
     <div class="topbar-actions">
+      <span class="sync-pill local" id="syncPill"></span>
       <button class="ghost-link-btn" id="clearAllBtn">Очистить архив</button>
       <button class="icon-btn" id="themeToggle" aria-label="Переключить тему" title="Тема">🌙</button>
     </div>
   </header>
+
+  <div class="stats" id="stats"></div>
 
   <div class="layout">
     <nav class="rail" id="rail"></nav>
@@ -666,90 +769,270 @@
 (function () {
   "use strict";
 
-  // ---------------------------------------------------------
-  // STORAGE  (личный бланк — данные хранятся только в этом браузере)
-  // ---------------------------------------------------------
-  const STORAGE_KEY = "hw-diary-v1";
+  // =========================================================
+  // НАСТРОЙКА ОБЩЕЙ БАЗЫ (Firebase Realtime Database)
+  // Вставь сюда адрес своей базы, например:
+  //   "https://my-diary-default-rtdb.europe-west1.firebasedatabase.app"
+  // Пока адрес пустой — сайт работает как раньше, только на этом устройстве.
+  // =========================================================
+  const DB_URL = "";
+  const POLL_MS = 6000; // как часто подтягивать чужие изменения
 
-  function loadState() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch (e) { /* ignore */ }
-    return { tasks: [] };
-  }
+  const BASE = DB_URL.trim().replace(/\/+$/, "");
+  const SHARED = /^https?:\/\//.test(BASE);
+  const LOCAL_KEY = "hw-diary-v1";
 
-  function saveState() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-    catch (e) { /* storage unavailable — app still works this session */ }
-  }
-
-  let state = loadState();
+  const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l6 6L20 6"/></svg>`;
+  const LOCALE = "ru-RU";
 
   // ---------------------------------------------------------
-  // VIEW STATE
+  // HELPERS
   // ---------------------------------------------------------
-  let view = {
-    mode: "list",          // 'list' | 'add'
-    activeSubject: "all",  // 'all' | subjectKey
-    step: "subject",       // 'subject' | 'task' | 'deadline' | 'review'
-    draft: { subject: "", task: "", deadline: "" },
-  };
-
   const PALETTE = ["#b4552f", "#2f6f62", "#7d63a6", "#c98a2c", "#3f6fa6", "#6e7f4c"];
 
   function norm(text) {
-    return text.toLowerCase().replace(/ё/g, "е").trim().replace(/\s+/g, " ");
+    return String(text).toLowerCase().replace(/ё/g, "е").trim().replace(/\s+/g, " ");
   }
-
   function subjectColor(key) {
     let hash = 0;
     for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
     return PALETTE[hash % PALETTE.length];
   }
-
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
+  function escapeHtml(str) {
+    return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  }
+  function escapeAttr(str) { return escapeHtml(str); }
+
+  function dayStart(ts) {
+    const d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }
+  function dayDiff(ts) {
+    return Math.round((dayStart(Date.now()) - dayStart(ts)) / 86400000);
+  }
+  function fmtTime(ts) {
+    return new Date(ts).toLocaleTimeString(LOCALE, { hour: "2-digit", minute: "2-digit" });
+  }
+  // «сегодня, 14:30» / «вчера, 09:00» / «12 окт, 14:30»
+  function fmtWhen(ts) {
+    const diff = dayDiff(ts);
+    if (diff === 0) return `сегодня, ${fmtTime(ts)}`;
+    if (diff === 1) return `вчера, ${fmtTime(ts)}`;
+    const date = new Date(ts).toLocaleDateString(LOCALE, { day: "numeric", month: "short" });
+    return `${date}, ${fmtTime(ts)}`;
+  }
+  function fmtFull(ts) {
+    return new Date(ts).toLocaleString(LOCALE, { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" });
+  }
+  function dayLabel(ts) {
+    const diff = dayDiff(ts);
+    if (diff === 0) return "Сегодня";
+    if (diff === 1) return "Вчера";
+    return new Date(ts).toLocaleDateString(LOCALE, { day: "numeric", month: "long" });
+  }
+  function toLocalInput(ts) {
+    const d = new Date(ts);
+    const p = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  // ---------------------------------------------------------
+  // DATA MODEL
+  // task = { id, subject, subjectKey, task, assignedAt, createdAt, done, doneAt }
+  // ---------------------------------------------------------
+  function normalizeTask(t) {
+    const subject = String(t.subject || "").slice(0, 60);
+    const done = t.done === true;
+    return {
+      id: String(t.id),
+      subject,
+      subjectKey: norm(subject),
+      task: String(t.task || "").slice(0, 2000),
+      assignedAt: Number(t.assignedAt) || Number(t.createdAt) || Date.now(),
+      createdAt: Number(t.createdAt) || Number(t.assignedAt) || Date.now(),
+      done,
+      doneAt: done ? (Number(t.doneAt) || Date.now()) : null,
+    };
+  }
+  function isValidTask(t) {
+    return t && typeof t.subject === "string" && typeof t.task === "string" &&
+      t.subject.trim() && t.task.trim();
+  }
+  function serialize(t) {
+    const o = {
+      id: t.id, subject: t.subject, task: t.task,
+      assignedAt: t.assignedAt, createdAt: t.createdAt, done: t.done,
+    };
+    if (t.done && t.doneAt) o.doneAt = t.doneAt;
+    return o;
+  }
+  function sigOf(list) {
+    return JSON.stringify(list.slice().sort((a, b) => a.id.localeCompare(b.id)).map(serialize));
+  }
+
+  // ---------------------------------------------------------
+  // STORAGE: локальный режим
+  // ---------------------------------------------------------
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem(LOCAL_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.tasks)) {
+          return { tasks: parsed.tasks.filter(isValidTask).map(normalizeTask) };
+        }
+      }
+    } catch (e) { /* ignore */ }
+    return { tasks: [] };
+  }
+  function saveLocal() {
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify({ tasks: state.tasks.map(serialize) })); }
+    catch (e) { /* storage unavailable */ }
+  }
+
+  // ---------------------------------------------------------
+  // STORAGE: общий режим (Firebase Realtime Database через REST)
+  // ---------------------------------------------------------
+  async function api(method, path, body) {
+    const res = await fetch(`${BASE}/${path}.json`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+
+  let state = SHARED ? { tasks: [] } : loadLocal();
+  let loaded = !SHARED;
+  let pending = 0; // сколько наших записей сейчас летит на сервер
+
+  function setSync(mode) {
+    const el = document.getElementById("syncPill");
+    const map = {
+      connecting: ["local", "Подключаюсь…"],
+      shared: ["online", "Общий доступ"],
+      offline: ["offline", "Нет связи"],
+      local: ["local", "Только на этом устройстве"],
+    };
+    const [cls, label] = map[mode];
+    el.className = "sync-pill " + cls;
+    el.innerHTML = `<span class="pulse"></span>${label}`;
+    el.title = mode === "local"
+      ? "Общая база не подключена: задания видны только в этом браузере"
+      : mode === "offline" ? "Не удаётся связаться с базой. Попробую ещё раз автоматически." : "";
+  }
+
+  async function pull() {
+    if (!SHARED || pending > 0 || document.hidden) return;
+    try {
+      const data = await api("GET", "tasks");
+      if (pending > 0) return; // во время запроса мы что-то изменили — не затираем
+      const list = data
+        ? Object.entries(data)
+            .filter(([, t]) => isValidTask(t))
+            .map(([id, t]) => normalizeTask({ ...t, id }))
+        : [];
+      setSync("shared");
+      const firstLoad = !loaded;
+      loaded = true;
+      if (firstLoad || sigOf(list) !== sigOf(state.tasks)) {
+        state.tasks = list;
+        softRefresh();
+      }
+    } catch (e) {
+      setSync("offline");
+      if (!loaded) { loaded = true; softRefresh(); }
+    }
+  }
+
+  async function remote(fn) {
+    pending++;
+    try {
+      await fn();
+      setSync("shared");
+    } catch (e) {
+      setSync("offline");
+      showToast("Нет связи — изменение не сохранилось");
+    } finally {
+      pending--;
+      if (pending === 0) { pull(); }
+    }
+  }
+
+  function addTask(t) {
+    state.tasks.push(t);
+    if (SHARED) remote(() => api("PUT", `tasks/${t.id}`, serialize(t)));
+    else saveLocal();
+  }
+  function updateTask(id, patch) {
+    const t = state.tasks.find(x => x.id === id);
+    if (!t) return;
+    Object.assign(t, patch);
+    if (SHARED) remote(() => api("PATCH", `tasks/${id}`, patch)); // null в PATCH удаляет поле
+    else saveLocal();
+  }
+  function deleteTasks(ids) {
+    const set = new Set(ids);
+    state.tasks = state.tasks.filter(t => !set.has(t.id));
+    if (SHARED) {
+      const body = {};
+      ids.forEach(id => { body[id] = null; });
+      remote(() => api("PATCH", "tasks", body));
+    } else saveLocal();
+  }
+
+  // ---------------------------------------------------------
+  // VIEW STATE
+  // ---------------------------------------------------------
+  const STEP_ORDER = ["subject", "task", "assigned", "review"];
+
+  let view = {
+    mode: "list",          // 'list' | 'add'
+    tab: "active",         // 'active' | 'archive'
+    activeSubject: "all",  // 'all' | subjectKey
+    step: "subject",
+    draft: { subject: "", task: "", assignedAt: Date.now(), editing: null },
+  };
 
   // ---------------------------------------------------------
   // DERIVED DATA
   // ---------------------------------------------------------
+  function activeTasks() { return state.tasks.filter(t => !t.done); }
+  function archivedTasks() { return state.tasks.filter(t => t.done); }
+
   function getSubjects() {
     const map = new Map();
-    state.tasks.forEach(t => {
+    activeTasks().forEach(t => {
       if (!map.has(t.subjectKey)) map.set(t.subjectKey, { key: t.subjectKey, name: t.subject, count: 0 });
       map.get(t.subjectKey).count++;
     });
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "ru"));
   }
 
+  // новые задания сверху
   function tasksFor(subjectKey) {
-    return state.tasks
+    return activeTasks()
       .filter(t => subjectKey === "all" || t.subjectKey === subjectKey)
-      .sort((a, b) => {
-        const da = a.deadline || "9999-99-99";
-        const db = b.deadline || "9999-99-99";
-        return da.localeCompare(db) || a.createdAt - b.createdAt;
-      });
+      .sort((a, b) => b.assignedAt - a.assignedAt);
   }
 
   // ---------------------------------------------------------
-  // DEADLINE FORMATTING
+  // RENDER: STATS
   // ---------------------------------------------------------
-  function deadlineInfo(dateStr) {
-    if (!dateStr) return null;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const d = new Date(dateStr + "T00:00:00");
-    const diff = Math.round((d - today) / 86400000);
-    const fmt = d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
-
-    if (diff < 0) return { text: `Просрочено · ${fmt}`, cls: "overdue" };
-    if (diff === 0) return { text: "Сегодня", cls: "today" };
-    if (diff === 1) return { text: "Завтра", cls: "soon" };
-    if (diff <= 6) return { text: `Через ${diff} дн. · ${fmt}`, cls: "soon" };
-    return { text: fmt, cls: "" };
+  function renderStats() {
+    const el = document.getElementById("stats");
+    const todayStart = dayStart(Date.now());
+    const todayCount = state.tasks.filter(t => t.assignedAt >= todayStart).length;
+    el.innerHTML = `
+      <div class="stat accent"><div class="num">${activeTasks().length}</div><div class="lbl">в работе</div></div>
+      <div class="stat"><div class="num">${todayCount}</div><div class="lbl">задано сегодня</div></div>
+      <div class="stat"><div class="num">${archivedTasks().length}</div><div class="lbl">в архиве</div></div>
+    `;
   }
 
   // ---------------------------------------------------------
@@ -758,14 +1041,15 @@
   function renderRail() {
     const rail = document.getElementById("rail");
     const subjects = getSubjects();
-    const total = state.tasks.length;
+    const total = activeTasks().length;
+    const inActive = view.tab === "active";
 
     let html = `
       <button class="rail-add-btn" id="railAddBtn">
         <span>＋</span><span>Записать ДЗ</span>
       </button>
       <div class="rail-divider"></div>
-      <button class="rail-tab ${view.activeSubject === "all" ? "active" : ""}" data-subject="all">
+      <button class="rail-tab ${inActive && view.activeSubject === "all" ? "active" : ""}" data-subject="all">
         <span class="dot" style="background: var(--ink-faint)"></span>
         <span>Все задания</span>
         <span class="count">${total}</span>
@@ -773,9 +1057,9 @@
     `;
 
     subjects.forEach(s => {
-      const active = view.activeSubject === s.key;
+      const active = inActive && view.activeSubject === s.key;
       html += `
-        <button class="rail-tab ${active ? "active" : ""}" data-subject="${s.key}">
+        <button class="rail-tab ${active ? "active" : ""}" data-subject="${escapeAttr(s.key)}">
           <span class="dot" style="background:${subjectColor(s.key)}"></span>
           <span>${escapeHtml(s.name)}</span>
           <span class="count">${s.count}</span>
@@ -783,31 +1067,53 @@
       `;
     });
 
+    html += `
+      <div class="rail-divider"></div>
+      <button class="rail-tab ${view.tab === "archive" ? "active" : ""}" id="archiveTab">
+        <span class="rail-emoji">🗂</span>
+        <span>Архив</span>
+        <span class="count">${archivedTasks().length}</span>
+      </button>
+    `;
+
     rail.innerHTML = html;
 
     rail.querySelectorAll("[data-subject]").forEach(btn => {
       btn.addEventListener("click", () => {
+        view.tab = "active";
         view.activeSubject = btn.dataset.subject;
         view.mode = "list";
         render();
       });
     });
+    document.getElementById("archiveTab").addEventListener("click", () => {
+      view.tab = "archive";
+      view.mode = "list";
+      render();
+    });
     document.getElementById("railAddBtn").addEventListener("click", startAddFlow);
   }
 
   // ---------------------------------------------------------
-  // RENDER: BOARD (list mode)
+  // RENDER: BOARD (список активных)
   // ---------------------------------------------------------
+  function loadingHtml() {
+    return `<div class="empty-state"><div class="glyph">⏳</div><h3>Загружаю задания…</h3><p>Подтягиваю общий список.</p></div>`;
+  }
+
   function renderBoardList() {
     const board = document.getElementById("board");
     const subjects = getSubjects();
 
+    if (!loaded) { board.innerHTML = loadingHtml(); return; }
+
     if (subjects.length === 0) {
+      const hasArchive = archivedTasks().length > 0;
       board.innerHTML = `
         <div class="empty-state">
-          <div class="glyph">📭</div>
-          <h3>Домашнего задания нет</h3>
-          <p>Добавь первую запись — займёт меньше минуты.</p>
+          <div class="glyph">${hasArchive ? "🎉" : "📭"}</div>
+          <h3>${hasArchive ? "Всё сделано!" : "Домашнего задания нет"}</h3>
+          <p>${hasArchive ? "Выполненные задания лежат в архиве." : "Добавь первую запись — займёт меньше минуты."}</p>
           <button class="primary-btn" id="emptyAddBtn">＋ Записать ДЗ</button>
         </div>
       `;
@@ -819,24 +1125,23 @@
       let html = `
         <div class="board-heading">
           <h2>Все домашние задания</h2>
-          <span class="hint">${state.tasks.length} шт.</span>
+          <span class="hint">${activeTasks().length} шт.</span>
         </div>
       `;
       subjects.forEach(s => {
         html += `<div class="group-label"><span class="dot" style="background:${subjectColor(s.key)}"></span>${escapeHtml(s.name)}</div>`;
-        html += `<div class="cards">` + tasksFor(s.key).map(taskCardHtml).join("") + `</div>`;
+        html += `<div class="cards">` + tasksFor(s.key).map(t => taskCardHtml(t)).join("") + `</div>`;
       });
       board.innerHTML = html;
     } else {
       const items = tasksFor(view.activeSubject);
       if (items.length === 0) { view.activeSubject = "all"; return renderBoardList(); }
-      const name = items[0].subject;
       board.innerHTML = `
         <div class="board-heading">
-          <h2>${escapeHtml(name)}</h2>
+          <h2>${escapeHtml(items[0].subject)}</h2>
           <span class="hint">${items.length} шт.</span>
         </div>
-        <div class="cards">${items.map(taskCardHtml).join("")}</div>
+        <div class="cards">${items.map(t => taskCardHtml(t)).join("")}</div>
       `;
     }
 
@@ -845,50 +1150,118 @@
     });
   }
 
-  function taskCardHtml(t) {
-    const dl = deadlineInfo(t.deadline);
+  function taskCardHtml(t, archived) {
+    const color = subjectColor(t.subjectKey);
+    const showSubject = archived || view.activeSubject === "all";
+    const isNew = !archived && dayDiff(t.assignedAt) === 0;
     return `
-      <div class="task-card" data-id="${t.id}" style="border-left-color:${subjectColor(t.subjectKey)}">
-        <button class="task-check" data-done="${t.id}" aria-label="Отметить выполненным">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-            <path d="M4 12l6 6L20 6"/>
-          </svg>
-        </button>
+      <div class="task-card ${archived ? "archived" : ""}" data-id="${t.id}" style="border-left-color:${color}">
+        ${archived
+          ? `<div class="task-check filled" aria-hidden="true">${CHECK_SVG}</div>`
+          : `<button class="task-check" data-done="${t.id}" aria-label="Отметить выполненным">${CHECK_SVG}</button>`}
         <div class="task-body">
-          ${view.activeSubject === "all" ? `<div class="task-subject">${escapeHtml(t.subject)}</div>` : ""}
+          ${showSubject ? `<div class="task-subject" style="color:${color}">${escapeHtml(t.subject)}</div>` : ""}
           <div class="task-text">${escapeHtml(t.task)}</div>
-          ${dl ? `<div class="task-meta"><span class="badge ${dl.cls}">${dl.text}</span></div>` : ""}
+          <div class="task-meta">
+            <span class="badge ${isNew ? "soon" : ""}">🕒 Задано: ${fmtWhen(t.assignedAt)}</span>
+            ${archived && t.doneAt ? `<span class="badge done">✓ Выполнено: ${fmtWhen(t.doneAt)}</span>` : ""}
+          </div>
         </div>
+        ${archived ? `
+          <div class="card-actions">
+            <button class="mini-btn" data-restore="${t.id}" title="Вернуть в активные" aria-label="Вернуть в активные">↩</button>
+            <button class="mini-btn danger" data-delete="${t.id}" title="Удалить навсегда" aria-label="Удалить навсегда">✕</button>
+          </div>` : ""}
       </div>
     `;
   }
 
   function completeTask(id) {
+    const t = state.tasks.find(x => x.id === id);
+    if (!t || t.done) return;
     const el = document.querySelector(`.task-card[data-id="${id}"]`);
-    if (el) {
-      el.classList.add("leaving");
-      setTimeout(() => {
-        state.tasks = state.tasks.filter(t => t.id !== id);
-        saveState();
-        render();
-        showToast("Готово — задание отмечено выполненным 🎉");
-      }, 260);
-    } else {
-      state.tasks = state.tasks.filter(t => t.id !== id);
-      saveState();
+    const finish = () => {
+      updateTask(id, { done: true, doneAt: Date.now() });
       render();
-    }
+      showToast("Перенесено в архив ✓");
+    };
+    if (el) {
+      el.classList.add("checked");
+      setTimeout(() => {
+        el.classList.add("leaving");
+        setTimeout(finish, 260);
+      }, 220);
+    } else finish();
   }
 
   // ---------------------------------------------------------
-  // RENDER: BOARD (add-flow / stepper mode)
+  // RENDER: BOARD (архив)
   // ---------------------------------------------------------
-  const STEP_ORDER = ["subject", "task", "deadline", "review"];
+  function renderBoardArchive() {
+    const board = document.getElementById("board");
+    if (!loaded) { board.innerHTML = loadingHtml(); return; }
 
+    const items = archivedTasks().sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+
+    if (items.length === 0) {
+      board.innerHTML = `
+        <div class="empty-state">
+          <div class="glyph">🗂</div>
+          <h3>Архив пуст</h3>
+          <p>Когда отметишь задание выполненным, оно появится здесь.</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = `
+      <div class="board-heading">
+        <h2>Архив</h2>
+        <span class="hint">${items.length} шт.</span>
+      </div>
+    `;
+    let currentDay = null;
+    let open = false;
+    items.forEach(t => {
+      const day = dayStart(t.doneAt || t.createdAt);
+      if (day !== currentDay) {
+        if (open) html += `</div>`;
+        html += `<div class="group-label">${escapeHtml(dayLabel(day))}</div><div class="cards">`;
+        currentDay = day;
+        open = true;
+      }
+      html += taskCardHtml(t, true);
+    });
+    if (open) html += `</div>`;
+    board.innerHTML = html;
+
+    board.querySelectorAll("[data-restore]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        updateTask(btn.dataset.restore, { done: false, doneAt: null });
+        render();
+        showToast("Вернул в активные ↩");
+      });
+    });
+    board.querySelectorAll("[data-delete]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.delete;
+        openConfirm(
+          "Удалить из архива?",
+          "Запись исчезнет у всех без возможности восстановления.",
+          "Удалить",
+          () => { deleteTasks([id]); render(); showToast("Запись удалена"); }
+        );
+      });
+    });
+  }
+
+  // ---------------------------------------------------------
+  // RENDER: BOARD (добавление ДЗ — пошаговая форма)
+  // ---------------------------------------------------------
   function startAddFlow() {
     view.mode = "add";
     view.step = "subject";
-    view.draft = { subject: "", task: "", deadline: "", editing: null };
+    view.draft = { subject: "", task: "", assignedAt: Date.now(), editing: null };
     render();
   }
 
@@ -902,6 +1275,18 @@
     return `<div class="step-progress">` +
       STEP_ORDER.map((s, i) => `<div class="seg ${i <= idx ? "done" : ""}"></div>`).join("") +
       `</div>`;
+  }
+
+  // после заполнения шага: если правили из «Проверки» — вернуться туда, иначе дальше
+  function afterStep() {
+    if (view.draft.editing) { view.draft.editing = null; view.step = "review"; }
+    else view.step = STEP_ORDER[STEP_ORDER.indexOf(view.step) + 1];
+    render();
+  }
+  function backFrom(prevStep) {
+    if (view.draft.editing) { view.draft.editing = null; view.step = "review"; }
+    else view.step = prevStep;
+    render();
   }
 
   function renderBoardAdd() {
@@ -918,7 +1303,7 @@
           <input class="field-input" id="subjectInput" placeholder="Название предмета" maxlength="60" value="${escapeAttr(view.draft.subject)}" autofocus>
           ${subjects.length ? `<div class="chip-row">${subjects.map(s => `<button class="chip" data-pick="${escapeAttr(s.name)}">${escapeHtml(s.name)}</button>`).join("")}</div>` : ""}
           <div class="step-actions">
-            <button class="btn btn-text" id="cancelBtn">Отмена</button>
+            <button class="btn btn-text" id="cancelBtn">${view.draft.editing ? "Назад" : "Отмена"}</button>
             <button class="btn btn-primary" id="nextBtn">Далее</button>
           </div>
         </div>
@@ -926,18 +1311,23 @@
       const input = document.getElementById("subjectInput");
       const nextBtn = document.getElementById("nextBtn");
       const sync = () => { nextBtn.disabled = input.value.trim().length === 0; };
+      const commit = () => {
+        if (nextBtn.disabled) return;
+        view.draft.subject = input.value.trim();
+        afterStep();
+      };
       input.addEventListener("input", sync);
       sync();
       input.focus();
-      input.addEventListener("keydown", e => { if (e.key === "Enter" && !nextBtn.disabled) goNext(); });
+      input.addEventListener("keydown", e => { if (e.key === "Enter") commit(); });
       board.querySelectorAll("[data-pick]").forEach(chip => {
         chip.addEventListener("click", () => { input.value = chip.dataset.pick; sync(); input.focus(); });
       });
-      nextBtn.addEventListener("click", () => {
-        view.draft.subject = input.value.trim();
-        goNext();
+      nextBtn.addEventListener("click", commit);
+      document.getElementById("cancelBtn").addEventListener("click", () => {
+        if (view.draft.editing) { view.draft.editing = null; view.step = "review"; render(); }
+        else cancelAddFlow();
       });
-      document.getElementById("cancelBtn").addEventListener("click", cancelAddFlow);
     }
 
     if (view.step === "task") {
@@ -947,7 +1337,7 @@
           <div class="step-eyebrow">Шаг 2 из 3 · ${escapeHtml(view.draft.subject)}</div>
           <h3>Что задано?</h3>
           <p class="sub">Например: стр. 45, № 12–15</p>
-          <textarea class="field-input" id="taskInput" placeholder="Описание задания">${escapeHtml(view.draft.task)}</textarea>
+          <textarea class="field-input" id="taskInput" maxlength="2000" placeholder="Описание задания">${escapeHtml(view.draft.task)}</textarea>
           <div class="step-actions">
             <button class="btn btn-text" id="backBtn">Назад</button>
             <button class="btn btn-primary" id="nextBtn">Далее</button>
@@ -962,56 +1352,47 @@
       input.focus();
       nextBtn.addEventListener("click", () => {
         view.draft.task = input.value.trim();
-        if (view.draft.editing) { view.draft.editing = null; view.step = "review"; }
-        else goNext();
-        render();
+        afterStep();
       });
-      document.getElementById("backBtn").addEventListener("click", () => {
-        if (view.draft.editing) { view.draft.editing = null; view.step = "review"; }
-        else goBack();
-        render();
-      });
+      document.getElementById("backBtn").addEventListener("click", () => backFrom("subject"));
     }
 
-    if (view.step === "deadline") {
+    if (view.step === "assigned") {
       board.innerHTML = `
         <div class="stepper">
           ${progressHtml()}
           <div class="step-eyebrow">Шаг 3 из 3</div>
-          <h3>Когда сдавать?</h3>
-          <p class="sub">Можно пропустить, если срок неизвестен</p>
-          <input class="field-input" type="date" id="deadlineInput" value="${escapeAttr(view.draft.deadline)}">
+          <h3>Когда задали?</h3>
+          <p class="sub">Дата и время, когда было задано это ДЗ</p>
+          <input class="field-input" type="datetime-local" id="assignedInput" value="${toLocalInput(view.draft.assignedAt)}">
+          <div class="chip-row">
+            <button class="chip" id="chipNow">Сейчас</button>
+            <button class="chip" id="chipYesterday">Вчера в это же время</button>
+          </div>
           <div class="step-actions">
             <button class="btn btn-text" id="backBtn">Назад</button>
-            <div style="display:flex; gap:8px;">
-              <button class="btn btn-text" id="skipBtn">Без срока</button>
-              <button class="btn btn-primary" id="nextBtn">Далее</button>
-            </div>
+            <button class="btn btn-primary" id="nextBtn">Далее</button>
           </div>
         </div>
       `;
-      const input = document.getElementById("deadlineInput");
+      const input = document.getElementById("assignedInput");
+      document.getElementById("chipNow").addEventListener("click", () => { input.value = toLocalInput(Date.now()); });
+      document.getElementById("chipYesterday").addEventListener("click", () => { input.value = toLocalInput(Date.now() - 86400000); });
       document.getElementById("nextBtn").addEventListener("click", () => {
-        view.draft.deadline = input.value || "";
-        view.step = "review";
-        render();
+        const ts = input.value ? new Date(input.value).getTime() : Date.now();
+        view.draft.assignedAt = isNaN(ts) ? Date.now() : ts;
+        afterStep();
       });
-      document.getElementById("skipBtn").addEventListener("click", () => {
-        view.draft.deadline = "";
-        view.step = "review";
-        render();
-      });
-      document.getElementById("backBtn").addEventListener("click", () => { view.step = "task"; render(); });
+      document.getElementById("backBtn").addEventListener("click", () => backFrom("task"));
     }
 
     if (view.step === "review") {
-      const dl = deadlineInfo(view.draft.deadline);
       board.innerHTML = `
         <div class="stepper">
           ${progressHtml()}
           <div class="step-eyebrow">Проверка</div>
           <h3>Всё верно?</h3>
-          <p class="sub">Проверь запись перед сохранением</p>
+          <p class="sub">Проверь запись перед сохранением. Её увидят все.</p>
           <div class="review-card">
             <div class="review-row">
               <div class="label">Предмет</div>
@@ -1024,9 +1405,9 @@
               <button data-edit="task">Изменить</button>
             </div>
             <div class="review-row">
-              <div class="label">Срок</div>
-              <div class="value">${view.draft.deadline ? escapeHtml(dl.text) : "Не указан"}</div>
-              <button data-edit="deadline">Изменить</button>
+              <div class="label">Задано</div>
+              <div class="value">${escapeHtml(fmtFull(view.draft.assignedAt))}</div>
+              <button data-edit="assigned">Изменить</button>
             </div>
           </div>
           <div class="step-actions">
@@ -1037,9 +1418,8 @@
       `;
       board.querySelectorAll("[data-edit]").forEach(btn => {
         btn.addEventListener("click", () => {
-          const field = btn.dataset.edit;
-          view.draft.editing = field;
-          view.step = field;
+          view.draft.editing = btn.dataset.edit;
+          view.step = btn.dataset.edit;
           render();
         });
       });
@@ -1048,31 +1428,22 @@
     }
   }
 
-  function goNext() {
-    const idx = STEP_ORDER.indexOf(view.step);
-    view.step = STEP_ORDER[idx + 1];
-    render();
-  }
-  function goBack() {
-    const idx = STEP_ORDER.indexOf(view.step);
-    view.step = STEP_ORDER[Math.max(0, idx - 1)];
-  }
-
   function saveDraft() {
-    const subjectKey = norm(view.draft.subject);
-    state.tasks.push({
+    const subject = view.draft.subject;
+    const t = normalizeTask({
       id: uid(),
-      subject: view.draft.subject,
-      subjectKey,
+      subject,
       task: view.draft.task,
-      deadline: view.draft.deadline || "",
+      assignedAt: view.draft.assignedAt,
       createdAt: Date.now(),
+      done: false,
     });
-    saveState();
+    addTask(t);
     view.mode = "list";
-    view.activeSubject = subjectKey;
+    view.tab = "active";
+    view.activeSubject = t.subjectKey;
     render();
-    showToast("Записано в архив ✓");
+    showToast("Записано — теперь видно всем ✓");
   }
 
   // ---------------------------------------------------------
@@ -1088,7 +1459,7 @@
   }
 
   // ---------------------------------------------------------
-  // CLEAR ALL (custom confirm dialog)
+  // CONFIRM DIALOG
   // ---------------------------------------------------------
   function openConfirm(title, text, confirmLabel, onConfirm) {
     const overlay = document.getElementById("overlay");
@@ -1108,20 +1479,18 @@
     overlay.onclick = e => { if (e.target === overlay) close(); };
   }
 
+  // «Очистить архив» удаляет только выполненные, активные не трогает
   document.getElementById("clearAllBtn").addEventListener("click", () => {
-    if (state.tasks.length === 0) { showToast("Архив уже пуст"); return; }
+    const ids = archivedTasks().map(t => t.id);
+    if (ids.length === 0) { showToast("Архив уже пуст"); return; }
     openConfirm(
-      "Очистить весь архив?",
-      "Все сохранённые домашние задания будут удалены без возможности восстановления.",
-      "Удалить всё",
+      "Очистить архив?",
+      "Все выполненные задания будут удалены у всех пользователей без возможности восстановления. Активные задания не пострадают.",
+      "Очистить",
       () => {
-        const count = state.tasks.length;
-        state.tasks = [];
-        saveState();
-        view.activeSubject = "all";
-        view.mode = "list";
+        deleteTasks(ids);
         render();
-        showToast(`Удалено записей: ${count}`);
+        showToast(`Удалено записей: ${ids.length}`);
       }
     );
   });
@@ -1147,29 +1516,40 @@
   });
 
   // ---------------------------------------------------------
-  // UTIL
-  // ---------------------------------------------------------
-  function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
-  }
-  function escapeAttr(str) { return escapeHtml(str); }
-
-  // ---------------------------------------------------------
   // DATE HEADER
   // ---------------------------------------------------------
   document.getElementById("todayDate").textContent =
-    new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long" });
+    new Date().toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" });
 
   // ---------------------------------------------------------
   // MAIN RENDER
   // ---------------------------------------------------------
   function render() {
+    renderStats();
     renderRail();
     if (view.mode === "add") renderBoardAdd();
+    else if (view.tab === "archive") renderBoardArchive();
     else renderBoardList();
   }
 
+  // обновление от синхронизации: не трогаем форму, чтобы не стереть то, что человек печатает
+  function softRefresh() {
+    if (view.mode === "add") { renderStats(); renderRail(); }
+    else render();
+  }
+
+  // ---------------------------------------------------------
+  // START
+  // ---------------------------------------------------------
+  setSync(SHARED ? "connecting" : "local");
   render();
+
+  if (SHARED) {
+    pull();
+    setInterval(pull, POLL_MS);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) pull(); });
+    window.addEventListener("online", pull);
+  }
 })();
 </script>
 </body>
