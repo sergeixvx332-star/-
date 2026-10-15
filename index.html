@@ -730,6 +730,68 @@
     .stat .num { font-size: 22px; }
     .brand h1 { font-size: 21px; }
   }
+
+  /* ---------- UPDATE: photos ---------- */
+  .photo-attach { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+  .attach-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 14px;
+    border: 1.5px dashed var(--ink-faint);
+    border-radius: var(--radius);
+    color: var(--ink-soft);
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+  }
+  .attach-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .attach-btn.full { opacity: 0.5; pointer-events: none; }
+  .attach-hint { font-size: 12.5px; color: var(--ink-faint); }
+
+  .thumbs { display: flex; flex-wrap: wrap; gap: 8px; }
+  .task-body .thumbs { margin: 8px 0 2px; }
+  .thumbs.draft { margin-top: 10px; }
+  .thumbs:empty { display: none; }
+  .thumb {
+    position: relative;
+    width: 68px; height: 68px;
+    padding: 0;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: var(--paper-card);
+  }
+  button.thumb { cursor: zoom-in; transition: border-color 0.15s ease, transform 0.15s ease; }
+  button.thumb:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .thumbs.draft .thumb { width: 76px; height: 76px; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb-x {
+    position: absolute; top: 3px; right: 3px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.62);
+    color: #fff; font-size: 11px; line-height: 1;
+  }
+
+  .lightbox {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(10, 10, 10, 0.9);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+  .lb-close, .lb-nav {
+    position: absolute;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff; font-size: 20px;
+  }
+  .lb-close:hover, .lb-nav:hover { background: rgba(255, 255, 255, 0.26); }
+  .lb-close { top: 16px; right: 16px; }
+  .lb-nav { top: 50%; transform: translateY(-50%); font-size: 30px; line-height: 1; }
+  .lb-nav.prev { left: 14px; }
+  .lb-nav.next { right: 14px; }
+  .lb-count { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -744,7 +806,7 @@
       </div>
     </div>
     <div class="topbar-actions">
-      <span class="sync-pill local" id="syncPill"></span>
+      <span class="sync-pill local" id="syncPill" hidden></span>
       <button class="ghost-link-btn" id="clearAllBtn">Очистить архив</button>
       <button class="icon-btn" id="themeToggle" aria-label="Переключить тему" title="Тема">🌙</button>
     </div>
@@ -784,6 +846,12 @@
 
   const CHECK_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M4 12l6 6L20 6"/></svg>`;
   const LOCALE = "ru-RU";
+
+  // Фото хранятся на устройстве (IndexedDB), в самом задании — только их id
+  const MAX_PHOTOS = 5;
+  const PHOTOS_ENABLED = !SHARED; // в общем режиме фото не синхронизируются, поэтому отключены
+  const photoCache = {};          // id -> dataURL
+  let idb = null;
 
   // ---------------------------------------------------------
   // HELPERS
@@ -841,6 +909,113 @@
   }
 
   // ---------------------------------------------------------
+  // PHOTOS
+  // ---------------------------------------------------------
+  function compressImage(file, maxSide = 1280, quality = 0.75) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(c.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("bad image")); };
+      img.src = url;
+    });
+  }
+  function openPhotoDb() {
+    return new Promise(res => {
+      try {
+        const r = indexedDB.open("hw-diary-photos", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("photos", { keyPath: "id" });
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => res(null);
+      } catch (e) { res(null); }
+    });
+  }
+  function photoLoadAll() {
+    return new Promise(res => {
+      if (!idb) return res();
+      try {
+        const req = idb.transaction("photos").objectStore("photos").getAll();
+        req.onsuccess = () => { (req.result || []).forEach(p => { photoCache[p.id] = p.data; }); res(); };
+        req.onerror = () => res();
+      } catch (e) { res(); }
+    });
+  }
+  function photoPut(id, data) {
+    photoCache[id] = data;
+    return new Promise(res => {
+      if (!idb) return res(false);
+      try {
+        const tx = idb.transaction("photos", "readwrite");
+        tx.objectStore("photos").put({ id, data });
+        tx.oncomplete = () => res(true);
+        tx.onerror = tx.onabort = () => res(false);
+      } catch (e) { res(false); }
+    });
+  }
+  function photoDelete(ids) {
+    ids.forEach(id => { delete photoCache[id]; });
+    if (!idb || !ids.length) return;
+    try {
+      const tx = idb.transaction("photos", "readwrite");
+      ids.forEach(id => tx.objectStore("photos").delete(id));
+    } catch (e) { /* ignore */ }
+  }
+
+  // Просмотр фото на весь экран
+  function openLightbox(ids, start) {
+    let i = start;
+    const box = document.createElement("div");
+    box.className = "lightbox";
+    const close = () => { box.remove(); document.removeEventListener("keydown", onKey); };
+    const go = d => { i = (i + d + ids.length) % ids.length; draw(); };
+    const onKey = e => {
+      if (e.key === "Escape") close();
+      if (e.key === "ArrowLeft" && ids.length > 1) go(-1);
+      if (e.key === "ArrowRight" && ids.length > 1) go(1);
+    };
+    function draw() {
+      box.innerHTML = `
+        <button class="lb-close" aria-label="Закрыть">✕</button>
+        ${ids.length > 1 ? `<button class="lb-nav prev" aria-label="Предыдущее">‹</button><button class="lb-nav next" aria-label="Следующее">›</button><div class="lb-count">${i + 1} / ${ids.length}</div>` : ""}
+        <img src="${photoCache[ids[i]] || ""}" alt="Фото к заданию">
+      `;
+      box.querySelector(".lb-close").onclick = close;
+      if (ids.length > 1) {
+        box.querySelector(".prev").onclick = () => go(-1);
+        box.querySelector(".next").onclick = () => go(1);
+      }
+    }
+    box.addEventListener("click", e => { if (e.target === box) close(); });
+    document.addEventListener("keydown", onKey);
+    document.body.appendChild(box);
+    draw();
+  }
+  function thumbsHtml(t) {
+    const ids = (t.photos || []).filter(id => photoCache[id]);
+    if (!ids.length) return "";
+    return `<div class="thumbs">` + ids.map((id, i) =>
+      `<button class="thumb" data-photo="${t.id}" data-idx="${i}" aria-label="Открыть фото"><img src="${photoCache[id]}" alt=""></button>`
+    ).join("") + `</div>`;
+  }
+  function bindThumbs(root) {
+    root.querySelectorAll("[data-photo]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const t = state.tasks.find(x => x.id === btn.dataset.photo);
+        if (!t) return;
+        openLightbox(t.photos.filter(id => photoCache[id]), Number(btn.dataset.idx));
+      });
+    });
+  }
+
+  // ---------------------------------------------------------
   // DATA MODEL
   // task = { id, subject, subjectKey, task, assignedAt, createdAt, done, doneAt }
   // ---------------------------------------------------------
@@ -852,6 +1027,7 @@
       subject,
       subjectKey: norm(subject),
       task: String(t.task || "").slice(0, 2000),
+      photos: Array.isArray(t.photos) ? t.photos.filter(x => typeof x === "string").slice(0, MAX_PHOTOS) : [],
       assignedAt: Number(t.assignedAt) || Number(t.createdAt) || Date.now(),
       createdAt: Number(t.createdAt) || Number(t.assignedAt) || Date.now(),
       done,
@@ -859,8 +1035,8 @@
     };
   }
   function isValidTask(t) {
-    return t && typeof t.subject === "string" && typeof t.task === "string" &&
-      t.subject.trim() && t.task.trim();
+    return t && typeof t.subject === "string" && t.subject.trim() &&
+      ((typeof t.task === "string" && t.task.trim()) || (Array.isArray(t.photos) && t.photos.length > 0));
   }
   function serialize(t) {
     const o = {
@@ -868,6 +1044,7 @@
       assignedAt: t.assignedAt, createdAt: t.createdAt, done: t.done,
     };
     if (t.done && t.doneAt) o.doneAt = t.doneAt;
+    if (t.photos && t.photos.length) o.photos = t.photos;
     return o;
   }
   function sigOf(list) {
@@ -920,6 +1097,7 @@
       local: ["local", "Только на этом устройстве"],
     };
     const [cls, label] = map[mode];
+    el.hidden = (mode === "local");
     el.className = "sync-pill " + cls;
     el.innerHTML = `<span class="pulse"></span>${label}`;
     el.title = mode === "local"
@@ -978,6 +1156,7 @@
   }
   function deleteTasks(ids) {
     const set = new Set(ids);
+    photoDelete(state.tasks.filter(t => set.has(t.id)).flatMap(t => t.photos || []));
     state.tasks = state.tasks.filter(t => !set.has(t.id));
     if (SHARED) {
       const body = {};
@@ -996,7 +1175,7 @@
     tab: "active",         // 'active' | 'archive'
     activeSubject: "all",  // 'all' | subjectKey
     step: "subject",
-    draft: { subject: "", task: "", assignedAt: Date.now(), editing: null },
+    draft: { subject: "", task: "", assignedAt: Date.now(), editing: null, photos: [] },
   };
 
   // ---------------------------------------------------------
@@ -1148,6 +1327,7 @@
     board.querySelectorAll("[data-done]").forEach(btn => {
       btn.addEventListener("click", () => completeTask(btn.dataset.done));
     });
+    bindThumbs(board);
   }
 
   function taskCardHtml(t, archived) {
@@ -1161,7 +1341,8 @@
           : `<button class="task-check" data-done="${t.id}" aria-label="Отметить выполненным">${CHECK_SVG}</button>`}
         <div class="task-body">
           ${showSubject ? `<div class="task-subject" style="color:${color}">${escapeHtml(t.subject)}</div>` : ""}
-          <div class="task-text">${escapeHtml(t.task)}</div>
+          ${t.task ? `<div class="task-text">${escapeHtml(t.task)}</div>` : ""}
+          ${thumbsHtml(t)}
           <div class="task-meta">
             <span class="badge ${isNew ? "soon" : ""}">🕒 Задано: ${fmtWhen(t.assignedAt)}</span>
             ${archived && t.doneAt ? `<span class="badge done">✓ Выполнено: ${fmtWhen(t.doneAt)}</span>` : ""}
@@ -1234,6 +1415,7 @@
     });
     if (open) html += `</div>`;
     board.innerHTML = html;
+    bindThumbs(board);
 
     board.querySelectorAll("[data-restore]").forEach(btn => {
       btn.addEventListener("click", () => {
@@ -1247,7 +1429,7 @@
         const id = btn.dataset.delete;
         openConfirm(
           "Удалить из архива?",
-          "Запись исчезнет у всех без возможности восстановления.",
+          (SHARED ? "Запись исчезнет у всех без возможности восстановления." : "Запись будет удалена без возможности восстановления."),
           "Удалить",
           () => { deleteTasks([id]); render(); showToast("Запись удалена"); }
         );
@@ -1261,7 +1443,7 @@
   function startAddFlow() {
     view.mode = "add";
     view.step = "subject";
-    view.draft = { subject: "", task: "", assignedAt: Date.now(), editing: null };
+    view.draft = { subject: "", task: "", assignedAt: Date.now(), editing: null, photos: [] };
     render();
   }
 
@@ -1336,8 +1518,17 @@
           ${progressHtml()}
           <div class="step-eyebrow">Шаг 2 из 3 · ${escapeHtml(view.draft.subject)}</div>
           <h3>Что задано?</h3>
-          <p class="sub">Например: стр. 45, № 12–15</p>
+          <p class="sub">Например: стр. 45, № 12–15.${PHOTOS_ENABLED ? " Можно добавить фото." : ""}</p>
           <textarea class="field-input" id="taskInput" maxlength="2000" placeholder="Описание задания">${escapeHtml(view.draft.task)}</textarea>
+          ${PHOTOS_ENABLED ? `
+            <div class="photo-attach">
+              <label class="attach-btn" id="attachBtn">
+                <input type="file" id="photoInput" accept="image/*" multiple hidden>
+                <span>📷 Прикрепить фото</span>
+              </label>
+              <span class="attach-hint" id="photoHint"></span>
+            </div>
+            <div class="thumbs draft" id="draftThumbs"></div>` : ""}
           <div class="step-actions">
             <button class="btn btn-text" id="backBtn">Назад</button>
             <button class="btn btn-primary" id="nextBtn">Далее</button>
@@ -1346,15 +1537,54 @@
       `;
       const input = document.getElementById("taskInput");
       const nextBtn = document.getElementById("nextBtn");
-      const sync = () => { nextBtn.disabled = input.value.trim().length === 0; };
-      input.addEventListener("input", sync);
+      const sync = () => {
+        nextBtn.disabled = input.value.trim().length === 0 && view.draft.photos.length === 0;
+      };
+      input.addEventListener("input", () => { view.draft.task = input.value; sync(); });
+
+      if (PHOTOS_ENABLED) {
+        const thumbsEl = document.getElementById("draftThumbs");
+        const hint = document.getElementById("photoHint");
+        const attachBtn = document.getElementById("attachBtn");
+        const photoInput = document.getElementById("photoInput");
+        const paint = () => {
+          thumbsEl.innerHTML = view.draft.photos.map((p, i) =>
+            `<div class="thumb"><img src="${p.data}" alt=""><button class="thumb-x" data-rm="${i}" aria-label="Убрать фото">✕</button></div>`
+          ).join("");
+          thumbsEl.querySelectorAll("[data-rm]").forEach(btn => {
+            btn.addEventListener("click", () => {
+              view.draft.photos.splice(Number(btn.dataset.rm), 1);
+              paint(); sync();
+            });
+          });
+          hint.textContent = view.draft.photos.length ? `${view.draft.photos.length} из ${MAX_PHOTOS}` : "";
+          attachBtn.classList.toggle("full", view.draft.photos.length >= MAX_PHOTOS);
+        };
+        photoInput.addEventListener("change", async () => {
+          const files = Array.from(photoInput.files);
+          photoInput.value = "";
+          for (const f of files) {
+            if (view.draft.photos.length >= MAX_PHOTOS) { showToast(`Максимум ${MAX_PHOTOS} фото`); break; }
+            try {
+              const data = await compressImage(f);
+              view.draft.photos.push({ id: uid(), data });
+              paint(); sync();
+            } catch (e) { showToast("Не получилось открыть это фото"); }
+          }
+        });
+        paint();
+      }
+
       sync();
       input.focus();
       nextBtn.addEventListener("click", () => {
         view.draft.task = input.value.trim();
         afterStep();
       });
-      document.getElementById("backBtn").addEventListener("click", () => backFrom("subject"));
+      document.getElementById("backBtn").addEventListener("click", () => {
+        view.draft.task = input.value.trim();
+        backFrom("subject");
+      });
     }
 
     if (view.step === "assigned") {
@@ -1392,7 +1622,7 @@
           ${progressHtml()}
           <div class="step-eyebrow">Проверка</div>
           <h3>Всё верно?</h3>
-          <p class="sub">Проверь запись перед сохранением. Её увидят все.</p>
+          <p class="sub">Проверь запись перед сохранением${SHARED ? ". Её увидят все." : "."}</p>
           <div class="review-card">
             <div class="review-row">
               <div class="label">Предмет</div>
@@ -1401,9 +1631,15 @@
             </div>
             <div class="review-row">
               <div class="label">Задание</div>
-              <div class="value">${escapeHtml(view.draft.task)}</div>
+              <div class="value">${view.draft.task ? escapeHtml(view.draft.task) : "—"}</div>
               <button data-edit="task">Изменить</button>
             </div>
+            ${view.draft.photos.length ? `
+            <div class="review-row">
+              <div class="label">Фото</div>
+              <div class="value"><div class="thumbs draft">${view.draft.photos.map(p => `<div class="thumb"><img src="${p.data}" alt=""></div>`).join("")}</div></div>
+              <button data-edit="task">Изменить</button>
+            </div>` : ""}
             <div class="review-row">
               <div class="label">Задано</div>
               <div class="value">${escapeHtml(fmtFull(view.draft.assignedAt))}</div>
@@ -1429,21 +1665,26 @@
   }
 
   function saveDraft() {
-    const subject = view.draft.subject;
+    const photos = view.draft.photos.slice();
     const t = normalizeTask({
       id: uid(),
-      subject,
+      subject: view.draft.subject,
       task: view.draft.task,
+      photos: photos.map(p => p.id),
       assignedAt: view.draft.assignedAt,
       createdAt: Date.now(),
       done: false,
     });
+    photos.forEach(p => { photoCache[p.id] = p.data; });
     addTask(t);
     view.mode = "list";
     view.tab = "active";
     view.activeSubject = t.subjectKey;
     render();
-    showToast("Записано — теперь видно всем ✓");
+    showToast(SHARED ? "Записано — теперь видно всем ✓" : "Записано ✓");
+    Promise.all(photos.map(p => photoPut(p.id, p.data))).then(results => {
+      if (results.includes(false)) showToast("Фото не сохранились на устройстве и пропадут после перезагрузки");
+    });
   }
 
   // ---------------------------------------------------------
@@ -1485,7 +1726,7 @@
     if (ids.length === 0) { showToast("Архив уже пуст"); return; }
     openConfirm(
       "Очистить архив?",
-      "Все выполненные задания будут удалены у всех пользователей без возможности восстановления. Активные задания не пострадают.",
+      (SHARED ? "Все выполненные задания будут удалены у всех пользователей без возможности восстановления. Активные задания не пострадают." : "Все выполненные задания будут удалены без возможности восстановления. Активные задания не пострадают."),
       "Очистить",
       () => {
         deleteTasks(ids);
@@ -1543,6 +1784,9 @@
   // ---------------------------------------------------------
   setSync(SHARED ? "connecting" : "local");
   render();
+  if (PHOTOS_ENABLED) {
+    openPhotoDb().then(db => { idb = db; return photoLoadAll(); }).then(() => render());
+  }
 
   if (SHARED) {
     pull();
